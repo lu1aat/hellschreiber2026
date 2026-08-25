@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>hellschreiber2026 — Feld Hell terminal</title>
+    <meta
+      name="description"
+      content="Browser-only Hellschreiber (Feld Hell) transmit and receive terminal for amateur radio."
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <h1>hellschreiber<span class="year">2026</span></h1>
+        <div class="header-status">
+          <span id="mode-label" class="chip">Feld Hell</span>
+          <span id="rate-label" class="chip">—</span>
+          <span id="snr-label" class="chip">SNR —</span>
+          <span id="audio-state" class="chip chip-warn">audio stopped</span>
+        </div>
+        <button id="start-button" class="primary">Start audio</button>
+      </header>
+
+      <!-- RECEIVE: horizontally scrolling raster, newest at the right edge. -->
+      <section class="panel rx-panel">
+        <div class="panel-head">
+          <h2>Receive</h2>
+          <div class="panel-controls">
+            <label>
+              Zoom
+              <input id="rx-zoom" type="range" min="1" max="8" step="1" value="3" />
+            </label>
+            <label class="checkbox">
+              <input id="rx-dual" type="checkbox" checked />
+              Dual print
+            </label>
+            <button
+              id="rx-invert"
+              type="button"
+              class="ghost toggle"
+              aria-pressed="false"
+              title="Swap between white-on-black and paper-tape black-on-white"
+            >
+              Invert
+            </button>
+            <label>
+              Slant
+              <input id="rx-slant" type="range" min="-500" max="500" step="5" value="0" />
+              <output id="rx-slant-value">0 ppm</output>
+            </label>
+            <button id="rx-clear" class="ghost">Clear</button>
+          </div>
+        </div>
+        <div class="strip-wrap">
+          <canvas id="rx-strip" aria-label="Received Hellschreiber text"></canvas>
+        </div>
+        <p class="hint">
+          Hell is a fuzzy mode — there is no character decoder. Read the picture; noise and fading
+          are meant to be visible.
+        </p>
+      </section>
+
+      <!-- TUNING: spectrum + waterfall on one canvas, click either to tune. -->
+      <section class="panel spectrum-panel">
+        <div class="panel-head">
+          <h2>Tuning</h2>
+          <div class="panel-controls">
+            <label>
+              Centre
+              <input id="freq-input" type="number" min="200" max="3000" step="1" value="1500" />
+              Hz
+            </label>
+            <label>
+              Width
+              <input id="width-input" type="number" min="50" max="1000" step="10" value="350" />
+              Hz
+            </label>
+          </div>
+        </div>
+        <canvas
+          id="tuning"
+          aria-label="Audio spectrum and waterfall of the input device"
+        ></canvas>
+        <p class="hint">
+          Spectrum above, waterfall below — one instrument. Click either to tune. Drag a passband
+          edge or scroll to change width. Narrow rejects noise but smears dots; wide is crisper but
+          noisier.
+        </p>
+      </section>
+
+      <!-- TRANSMIT -->
+      <section class="panel tx-panel">
+        <form id="tx-form" class="tx-row" autocomplete="off">
+          <input
+            id="tx-input"
+            type="text"
+            placeholder="Type a message, press Enter to send…"
+            aria-label="Message to transmit"
+          />
+          <button id="tx-send" type="submit" class="primary">Send</button>
+          <button id="tx-abort" type="button" class="danger" disabled>Abort</button>
+        </form>
+        <div class="tx-meta">
+          <div class="tx-progress"><div id="tx-progress-bar"></div></div>
+          <span id="tx-estimate" class="hint">—</span>
+        </div>
+      </section>
+
+      <!-- DEVICES: works with a sound card alone, or with a rig interface. -->
+      <section class="panel devices-panel">
+        <div class="panel-head">
+          <h2>Devices</h2>
+        </div>
+        <div class="device-row">
+          <label>
+            Input
+            <select id="input-device"></select>
+          </label>
+          <label>
+            Output
+            <select id="output-device"></select>
+          </label>
+          <label>
+            TX level
+            <input id="tx-level" type="range" min="0" max="100" step="1" value="50" />
+          </label>
+          <label class="checkbox">
+            <input id="monitor" type="checkbox" />
+            Loopback monitor
+          </label>
+        </div>
+        <p class="hint">
+          Loopback feeds your own transmit audio to the decoder — use it to test the whole chain
+          with no radio connected.
+        </p>
+      </section>
+
+      <footer class="footer">
+        <span>
+          Transmitting on the amateur bands requires a licence. Operate within your licence class
+          and band plan.
+        </span>
+        <a href="https://en.wikipedia.org/wiki/Hellschreiber" target="_blank" rel="noopener">
+          About Hellschreiber
+        </a>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
