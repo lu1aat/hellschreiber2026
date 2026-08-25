@@ -45,7 +45,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # enablement: true lets this workflow create the Pages site itself using
+      # the `pages: write` permission above. Without it the first run on a fresh
+      # repo (or anyone's fork) fails with "Get Pages site failed" until someone
+      # flips Settings > Pages > Source to GitHub Actions by hand.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
