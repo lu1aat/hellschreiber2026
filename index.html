@@ -40,11 +40,19 @@
               id="rx-invert"
               type="button"
               class="ghost toggle"
-              aria-pressed="false"
-              title="Swap between white-on-black and paper-tape black-on-white"
+              aria-pressed="true"
+              title="Swap between paper-tape black-on-white and white-on-black"
             >
               Invert
             </button>
+            <label class="checkbox">
+              <input id="rx-autosync" type="checkbox" checked />
+              Auto sync
+            </label>
+            <label title="Slide the printed text up or down inside the lane">
+              Align
+              <input id="rx-align" type="range" min="0" max="13" step="1" value="0" />
+            </label>
             <label>
               Slant
               <input id="rx-slant" type="range" min="-500" max="500" step="5" value="0" />

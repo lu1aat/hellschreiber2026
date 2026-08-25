@@ -9,6 +9,7 @@ import {
   DEFAULT_MODE,
   charsPerMinute,
   charsPerSecond,
+  dotsPerColumn,
   wordsPerMinute,
 } from './hell/modes';
 import { HellStrip } from './render/hell-strip';
@@ -39,6 +40,8 @@ const el = {
   zoom: $<HTMLInputElement>('rx-zoom'),
   dual: $<HTMLInputElement>('rx-dual'),
   invert: $<HTMLButtonElement>('rx-invert'),
+  autosync: $<HTMLInputElement>('rx-autosync'),
+  align: $<HTMLInputElement>('rx-align'),
   slant: $<HTMLInputElement>('rx-slant'),
   slantValue: $<HTMLOutputElement>('rx-slant-value'),
   clear: $<HTMLButtonElement>('rx-clear'),
@@ -73,6 +76,8 @@ interface Settings {
   zoom: number;
   dualPrint: boolean;
   inverse: boolean;
+  alignPhase: number;
+  autoAlign: boolean;
   inputDeviceId: string;
   outputDeviceId: string;
 }
@@ -84,7 +89,9 @@ const defaults: Settings = {
   txAmplitude: 0.5,
   zoom: 3,
   dualPrint: true,
-  inverse: false,
+  inverse: true,
+  alignPhase: 0,
+  autoAlign: true,
   inputDeviceId: '',
   outputDeviceId: '',
 };
@@ -114,6 +121,8 @@ const strip = new HellStrip(el.strip, mode, {
   scale: settings.zoom,
   dualPrint: settings.dualPrint,
   inverse: settings.inverse,
+  phase: settings.alignPhase,
+  autoAlign: settings.autoAlign,
 });
 
 const tuning = new TuningDisplay(
@@ -284,10 +293,30 @@ function setInverse(enabled: boolean): void {
   settings.inverse = enabled;
   strip.setInverse(enabled);
   el.invert.setAttribute('aria-pressed', String(enabled));
+  el.strip.parentElement?.classList.toggle('on-black', !enabled);
   saveSettings();
 }
 
 el.invert.addEventListener('click', () => setInverse(!settings.inverse));
+
+el.autosync.addEventListener('change', () => {
+  settings.autoAlign = el.autosync.checked;
+  strip.setAutoAlign(settings.autoAlign);
+  saveSettings();
+});
+
+// Dragging Align is the operator overruling the estimator, so it stops it
+// rather than fighting it for control of the same slider.
+el.align.addEventListener('input', () => {
+  if (settings.autoAlign) {
+    settings.autoAlign = false;
+    el.autosync.checked = false;
+    strip.setAutoAlign(false);
+  }
+  settings.alignPhase = Number(el.align.value);
+  strip.setPhase(settings.alignPhase);
+  saveSettings();
+});
 
 el.slant.addEventListener('input', () => {
   settings.clockPpm = Number(el.slant.value);
@@ -328,6 +357,13 @@ onDeviceChange(() => void refreshDevices());
 function frame(): void {
   strip.render();
 
+  // Auto sync moves the phase from inside pushElements; follow it here so the
+  // slider shows where the picture actually is.
+  if (strip.phase !== settings.alignPhase) {
+    settings.alignPhase = strip.phase;
+    el.align.value = String(settings.alignPhase);
+  }
+
   const magnitudes = engine.getSpectrum();
   if (magnitudes) tuning.render(magnitudes, engine.sampleRate);
 
@@ -338,9 +374,13 @@ function frame(): void {
 
 el.zoom.value = String(settings.zoom);
 el.dual.checked = settings.dualPrint;
+el.autosync.checked = settings.autoAlign;
+el.align.max = String(dotsPerColumn(mode) - 1);
+el.align.value = String(strip.phase);
 // The strip was constructed with settings.inverse already applied, so only the
-// button's state needs syncing here.
+// button and the surround need syncing here.
 el.invert.setAttribute('aria-pressed', String(settings.inverse));
+el.strip.parentElement?.classList.toggle('on-black', !settings.inverse);
 el.slant.value = String(settings.clockPpm);
 el.slantValue.textContent = `${settings.clockPpm} ppm`;
 el.freqInput.value = String(Math.round(settings.centerFreqHz));

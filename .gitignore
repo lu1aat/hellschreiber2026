@@ -6,6 +6,10 @@ dist-ssr/
 .vite/
 coverage/
 
+# Local development only: third-party off-air reference recordings and the
+# script that fetches them. Not ours to redistribute, and not part of this repo.
+samples/
+
 # Editors
 .vscode/*
 !.vscode/extensions.json

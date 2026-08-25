@@ -38,8 +38,27 @@ export function columnFromBits(bits: number, rows: number, out: Uint8Array, offs
 }
 
 /**
+ * Where an element lands within its column, as a half-dot row counted from the
+ * top (0 = topmost dot, `dotsPerColumn - 1` = bottom).
+ *
+ * Feld Hell scans each column from the *bottom up*: the first element of a
+ * column is the bottom dot, not the top one. This is the one place that knows
+ * it — `rasterToElements` transmits in this order and `HellStrip` paints
+ * arriving elements with it, without building a `Raster` first. Get it backwards
+ * and every character prints upside down, which a loopback test cannot see
+ * (both ends agree with each other) and which is obvious the moment you decode
+ * anybody else.
+ *
+ * Verified against off-air recordings of other stations: with element 0 painted
+ * at the top, 'T' and 'F' come out with their bars at the bottom.
+ */
+export function rowForElement(elementInColumn: number, dotsPerColumn: number): number {
+  return dotsPerColumn - 1 - elementInColumn;
+}
+
+/**
  * Flatten a raster into the transmit element sequence: columns left to right,
- * and within each column top to bottom, with every pixel repeated
+ * and within each column bottom to top, with every pixel repeated
  * `dotsPerPixel` times for half-height dot modes.
  *
  * This function defines the on-air element order for the whole project. If the
@@ -49,7 +68,7 @@ export function rasterToElements(r: Raster, dotsPerPixel: number): Uint8Array {
   const out = new Uint8Array(r.cols * r.rows * dotsPerPixel);
   let i = 0;
   for (let col = 0; col < r.cols; col++) {
-    for (let row = 0; row < r.rows; row++) {
+    for (let row = r.rows - 1; row >= 0; row--) {
       const value = getPixel(r, col, row);
       for (let d = 0; d < dotsPerPixel; d++) {
         out[i++] = value;
@@ -73,12 +92,14 @@ export function elementsToRaster(
   const cols = Math.floor(elements.length / perColumn);
   const r = createRaster(cols, rows);
   for (let col = 0; col < cols; col++) {
-    for (let row = 0; row < rows; row++) {
+    for (let e = 0; e < perColumn; e += dotsPerPixel) {
       let sum = 0;
       for (let d = 0; d < dotsPerPixel; d++) {
-        sum += elements[col * perColumn + row * dotsPerPixel + d];
+        sum += elements[col * perColumn + e + d];
       }
-      setPixel(r, col, row, Math.round(sum / dotsPerPixel));
+      // The group's dots are adjacent half-rows; the last of them is the top one.
+      const topHalfRow = rowForElement(e + dotsPerPixel - 1, perColumn);
+      setPixel(r, col, Math.floor(topHalfRow / dotsPerPixel), Math.round(sum / dotsPerPixel));
     }
   }
   return r;

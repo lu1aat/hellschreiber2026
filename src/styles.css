@@ -140,11 +140,17 @@ label.checkbox {
 /* Scrolls horizontally; overflow is hidden because the canvas is exactly the
    width of its container and the scrolling happens inside the drawing. */
 
+/* Paper tape by default; the Invert button swaps this to match the canvas so
+   the border and the pre-first-frame state never flash the wrong polarity. */
 .strip-wrap {
-  background: #000;
+  background: #fff;
   border: 1px solid var(--panel-edge);
   border-radius: 4px;
   overflow: hidden;
+}
+
+.strip-wrap.on-black {
+  background: #000;
 }
 
 #rx-strip {

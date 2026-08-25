@@ -9,10 +9,17 @@ import {
   charsPerSecond,
   dotRate,
   dotsPerChar,
+  dotsPerColumn,
   pixelsPerChar,
   wordsPerMinute,
 } from '../src/hell/modes';
-import { elementsToRaster, getPixel, rasterToElements, rasterToText } from '../src/hell/raster';
+import {
+  elementsToRaster,
+  getPixel,
+  rasterToElements,
+  rasterToText,
+  rowForElement,
+} from '../src/hell/raster';
 
 const mode = FELD_HELL;
 
@@ -56,10 +63,26 @@ describe('font', () => {
   });
 
   it('renders a recognisable letter', () => {
-    // Bottom row of 'L' is its full-width foot; the top row is a single stem.
+    // 'L' sits on the baseline, row 5, where its full-width foot is.
     const raster = encodeText('L', mode, { leadingBlankCols: 0, trailingBlankCols: 0 });
-    const bottomRow = Array.from({ length: mode.cols }, (_, col) => getPixel(raster, col, 6));
-    expect(bottomRow).toEqual([0, 255, 255, 255, 255, 255, 0]);
+    const foot = Array.from({ length: mode.cols }, (_, col) => getPixel(raster, col, 5));
+    expect(foot).toEqual([0, 255, 255, 255, 255, 255, 0]);
+  });
+
+  it('leaves a blank row above and below every letter and digit', () => {
+    // The receiver has no vertical sync, so a cell inked to its top and bottom
+    // edges butts into the copies above and below with no line to read along.
+    // Every on-air font leaves this gap; fldigi's feld7x7_14 blanks the first
+    // and last two of its fourteen half-rows, and off-air recordings of other
+    // stations measure the same. Descenders (',' ';' '$' '_') are the exception.
+    const body = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    for (const char of body) {
+      const glyph = glyphFor(char, mode);
+      for (let col = 0; col < mode.cols; col++) {
+        expect(glyph[col] & (1 << 0), `${char} col ${col} top row`).toBe(0);
+        expect(glyph[col] & (1 << (mode.rows - 1)), `${char} col ${col} bottom row`).toBe(0);
+      }
+    }
   });
 });
 
@@ -104,17 +127,37 @@ describe('raster element ordering', () => {
     expect(rasterToText(restored)).toBe(rasterToText(raster));
   });
 
-  it('emits columns left to right and rows top to bottom', () => {
+  it('emits columns left to right and rows bottom to top', () => {
     const raster = encodeText('T', mode, { leadingBlankCols: 0, trailingBlankCols: 0 });
     const elements = rasterToElements(raster, 2);
-
-    // 'T' has a full top bar, so the first element of every glyph column
-    // (its top row) is lit except in the two spacing columns.
     const perColumn = mode.rows * 2;
-    const topOfColumn = (col: number): number => elements[col * perColumn];
-    expect(topOfColumn(0)).toBe(0);
-    expect(topOfColumn(1)).toBe(255);
-    expect(topOfColumn(5)).toBe(255);
-    expect(topOfColumn(6)).toBe(0);
+
+    // Element e of a column paints at half-row perColumn - 1 - e, so pixel row
+    // r is the pair of elements starting at perColumn - 1 - 2r.
+    const pixel = (col: number, row: number): number =>
+      elements[col * perColumn + perColumn - 1 - 2 * row];
+
+    // Row 0 is the font's top padding and is blank right across the cell.
+    for (let col = 0; col < mode.cols; col++) expect(pixel(col, 0)).toBe(0);
+
+    // 'T' has a full bar on row 1 and a centred stem down to the baseline on
+    // row 5, which pins the left-to-right and bottom-to-top order together.
+    expect(pixel(0, 1)).toBe(0);
+    expect(pixel(1, 1)).toBe(255);
+    expect(pixel(5, 1)).toBe(255);
+    expect(pixel(6, 1)).toBe(0);
+
+    expect(pixel(1, 5)).toBe(0);
+    expect(pixel(3, 5)).toBe(255);
+    expect(pixel(5, 5)).toBe(0);
+  });
+
+  it('paints received elements bottom dot first', () => {
+    // HellStrip needs a canvas and cannot run here, so pin the mapping it uses.
+    // This is the receive half of the on-air convention above: reverse it and
+    // every character prints upside down with the loopback still passing.
+    const perColumn = dotsPerColumn(mode);
+    expect(rowForElement(0, perColumn)).toBe(perColumn - 1);
+    expect(rowForElement(perColumn - 1, perColumn)).toBe(0);
   });
 });

@@ -4,6 +4,17 @@
   "private": true,
   "type": "module",
   "description": "Browser-only Hellschreiber (Feld Hell) transmit/receive terminal for amateur radio",
+  "license": "MIT",
+  "keywords": [
+    "hellschreiber",
+    "feld-hell",
+    "amateur-radio",
+    "ham-radio",
+    "digital-modes",
+    "dsp",
+    "web-audio",
+    "audioworklet"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

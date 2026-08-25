@@ -6,6 +6,10 @@ runtime. Open the page, point your rig's audio at it, and you're on the air.
 
 Sound card in → decoded Hell text on screen. Type → shaped audio out → rig.
 
+**[Live demo →](https://lu1aat.github.io/hellschreiber2026/)** (once Pages is
+enabled — see [Hosting on GitHub Pages](#hosting-on-github-pages)). No install, no account;
+load it once and it keeps working with the network off.
+
 ---
 
 ## What is Hellschreiber?
@@ -42,11 +46,18 @@ Background: [Hellschreiber on Wikipedia](https://en.wikipedia.org/wiki/Hellschre
   ragged column flickering at the dot rate; the spectrum shows its instantaneous
   shape, the waterfall shows it persisting over ~10 seconds, which is what makes
   a weak signal findable in the first place.
-- **Invert** — flip the RX strip between white-on-black and paper-tape
-  black-on-white, history included.
+- **Invert** — flip the RX strip between paper-tape black-on-white (the
+  default, as on the original machine and in fldigi) and white-on-black,
+  history included.
 - **Adjustable receive width** — the width control is the real receive
   bandwidth, not a cosmetic overlay. Narrow rejects noise but smears dots; wide
   is crisper but noisier.
+- **Print sync** — the receiver starts counting elements whenever you press
+  Start, so the text lands at an arbitrary height in the lane and can straddle
+  the join between the two print copies. **Auto sync** finds the sender's cell
+  boundary from the blank rows every Hell font leaves, and **Align** is the
+  manual phasing control for when you would rather place it yourself. Moving
+  Align takes over from the automatic one.
 - **Slant correction** — manual clock trim in ppm, for when the far end's sound
   card runs at a slightly different rate and the text drifts up or down.
 - **Shaped keying** — raised-cosine dot envelopes keep the transmitted signal
@@ -117,6 +128,24 @@ playback needs no permission. To decode on another machine, put it behind https
 (a reverse proxy with a certificate, or a tunnel). The script warns about this
 when you bind to a non-localhost address.
 
+### Hosting on GitHub Pages
+
+Pushing to `main` builds the bundle and publishes it — see
+`.github/workflows/pages.yml`. Enable it once per fork:
+
+1. **Settings → Pages → Source: GitHub Actions.**
+2. Push to `main`. The workflow runs the test suite, builds, and deploys.
+
+The site lands at `https://<user>.github.io/<repo>/`. `base` is relative in
+`vite.config.ts`, so the subdirectory needs no configuration, and `dist/` stays
+gitignored — nothing built is ever committed.
+
+Pages serves over https, which is a secure context, so the microphone works
+there. It cannot send response headers, so the CSP that `router.php` sets
+locally is injected into the built `index.html` instead (build only, so the dev
+server's HMR is unaffected). The no-network promise is therefore enforced by the
+browser on Pages too, not just asserted.
+
 ### Browser requirements
 
 - Web Audio API with `AudioWorklet` (Chrome/Edge 66+, Firefox 76+, Safari 14.1+)
@@ -147,6 +176,9 @@ when you bind to a non-localhost address.
    produces audio only.
 6. **If the text slants,** adjust the slant slider until it sits level. A steady
    upward or downward drift is a clock difference, not a tuning error.
+7. **If the text sits half in one print copy and half in the other,** that is the
+   print phase, not a fault — leave **Auto sync** ticked and it settles within a
+   few characters, or untick it and place the text yourself with **Align**.
 
 **No radio?** Tick **Loopback monitor**, type something, and press Enter — your
 own transmission is decoded and drawn on the strip.
@@ -166,14 +198,14 @@ Standard **Feld Hell**, as implemented:
 | Pixel rate | **122.5 baud** |
 | Character rate | 2.5 characters/second (150 CPM, 25 WPM) |
 | Character matrix | 7 × 7 pixels = 49 pixels |
-| Glyph area | 5 × 7 pixels, with blank columns for spacing |
+| Glyph area | 5 × 5 pixels, centred in the cell: a blank column each side and a blank row above and below |
 | Pixel duration | 8.163 ms (hence the ~8 ms minimum on-signal) |
 | Element rate | 245 elements/second (half-height dots) |
 | Element duration | 4.08 ms |
 | Modulation | On/off keying of a single audio tone |
 | Occupied bandwidth | ~350 Hz |
 | Duty cycle | ~22% |
-| Transmit order | Column-major, left to right; within a column, top to bottom |
+| Transmit order | Column-major, left to right; within a column, bottom to top |
 | Default audio center | 1500 Hz (user-tunable) |
 
 Two numbers get confused constantly, so to be explicit:
@@ -222,9 +254,10 @@ src/
   styles.css
   hell/                    pure logic, no audio, no DOM — the cheap-to-test half
     modes.ts               mode table and derived timing; single source of truth
-    font.ts                5x7 glyphs in a 7x7 cell, written as ASCII art
+    font.ts                5x5 glyphs in a 7x7 cell, written as ASCII art
     encoder.ts             text -> raster
     raster.ts              raster type, element ordering, debug rendering
+    align.ts               print sync: finds the cell boundary in the stream
   dsp/
     tone-generator.ts      raster -> shaped OOK samples (TX core)
     demodulator.ts         samples -> element intensities (RX core)
@@ -234,11 +267,12 @@ src/
       hell-rx.worklet.ts   thin AudioWorklet shell around demodulator
   audio/engine.ts          Web Audio graph, device switching, loopback
   render/
-    hell-strip.ts          scrolling dual-print raster display (invert included)
+    hell-strip.ts          scrolling dual-print raster display (invert, align)
     tuning-display.ts      spectrum + waterfall + passband, one canvas
   ui/devices.ts            device enumeration and pickers
 tests/
   encoder.test.ts          font, encoder, timing, element ordering
+  align.test.ts            print sync recovery, hysteresis, noise rejection
   loopback.test.ts         end-to-end TX -> RX over synthetic audio
 ```
 
@@ -277,7 +311,7 @@ hold 4 ms slots accurately under GC or a busy main thread.
 
 ```bash
 npm run dev          # dev server
-npm run test         # vitest (27 tests)
+npm run test         # vitest (33 tests)
 npm run test:watch
 npm run typecheck
 npm run build        # typecheck + vite build

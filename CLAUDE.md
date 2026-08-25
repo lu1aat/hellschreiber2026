@@ -15,7 +15,7 @@ npm run dev                                   # vite dev server on :5173
 npm run build                                 # tsc --noEmit && vite build -> dist/
 npm run preview                               # serve the built bundle
 npm run typecheck
-npm run test                                  # vitest run (27: 12 encoder, 10 loopback, 5 ramp)
+npm run test                                  # vitest run (33: 14 encoder, 10 loopback, 5 ramp, 4 align)
 npm run test:watch
 npx vitest run tests/loopback.test.ts         # one file
 npx vitest run tests/loopback.test.ts -t "survives noise"   # one test
@@ -107,6 +107,12 @@ by reading several files at once:
   column-major intensity bytes, 0..255 — not bits, because RX needs the full
   greyscale. `rasterToElements` defines the on-air element order for the whole
   project; mirrored or upside-down text is a bug in that one function.
+  - Columns go left to right, but **each column is scanned bottom dot first** —
+    `rowForElement` in the same file is the single definition of that, used by
+    `rasterToElements` on TX and by `HellStrip.writeColumn` on RX. Reversing it
+    prints every character upside down while the loopback test stays green,
+    because both ends flip together. The only check that catches it is decoding
+    a signal we did not generate — an off-air recording of another station.
 
 - **`render/tuning-display.ts` is spectrum *and* waterfall on one canvas**, by
   design: shared frequency axis, one passband overlay, click anywhere to tune.
@@ -123,7 +129,23 @@ by reading several files at once:
 
 - **`HellStrip` bakes intensity into a ring buffer at write time.** Hence
   `setInverse` repaints the history — a change that only flips new columns
-  leaves the strip in two polarities at once.
+  leaves the strip in two polarities at once. `setPhase` has the same duty and
+  rolls the buffer for the same reason.
+
+- **Print sync is split across `hell/align.ts` and `HellStrip`.** The estimator
+  is pure and testable; the strip owns an instance because both have to count
+  the same elements from the same origin for a lane position to mean the same
+  thing to each. That is why `clear()` resets the partial column but leaves
+  `streamPos` and the tracker alone, and why the strip assigns elements by
+  `(streamPos - phase) % lanes` rather than filling a column and resetting a
+  counter — the latter cannot express a phase change without dropping elements.
+  - It is not a decoder and does not breach constraint 4. It measures average
+    energy per lane position to find the blank rows every Hell font leaves, and
+    decides *where on the canvas* to draw. No intensity is altered.
+  - It depends on the sender padding the cell. A font that inks all seven rows
+    scores near zero confidence and the tracker holds still, which is the right
+    answer — there is no gap to find. Hence the font test in
+    `tests/encoder.test.ts` that keeps *our* transmissions padded.
 
 ## The numbers
 
@@ -219,9 +241,11 @@ whether the display is right. The fastest check needs no radio:
 3. type something and press Enter
 
 Text should appear on the strip: upright, evenly spaced, readable, printed twice
-one above the other. The background should be dark grey rather than pure black —
-pure black means the intensity mapping has clipped and weak dots are being thrown
-away.
+one above the other, with a clear blank gap between the two copies. The strip is
+paper-tape black-on-white by default; press **Invert** to check the other
+polarity. In white-on-black the background should be dark grey rather than pure
+black — pure black means the intensity mapping has clipped and weak dots are
+being thrown away.
 
 ## Gotchas
 
